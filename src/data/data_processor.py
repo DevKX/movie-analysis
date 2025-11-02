@@ -1,51 +1,65 @@
-from typing import Dict, Any
 import pandas as pd
 
 class DataProcessor:
 
     def __init__(self):
+        # Initialize dataframe for movies and ratings
+        # Movies data (movieId, title, genres)
+        # rating data (userId, movieId, rating, timestamp)
         self.movies_df: pd.DataFrame = pd.DataFrame()
         self.ratings_df: pd.DataFrame = pd.DataFrame()
 
     def load_data(self, movies_path: str, ratings_path: str) -> None:
-        """Load movies.csv and ratings.csv"""
         try:
-            self.movies_df = pd.read_csv(movies_path)
-            self.ratings_df = pd.read_csv(ratings_path)
+            movies_dtypes = {
+                'movieId': 'int32',
+                'title': 'string',
+                'genres': 'string'
+            }
+            ratings_dtypes = {
+                'userId': 'int32',
+                'movieId': 'int32',
+                'rating': 'float32'
+            }
+
+            # Read CSV
+            self.movies_df = pd.read_csv(movies_path, dtype=movies_dtypes)
+            self.ratings_df = pd.read_csv(ratings_path, dtype=ratings_dtypes)
+
         except FileNotFoundError as e:
             raise FileNotFoundError(f"File not found: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Error reading CSVs: {e}")
+
+        # Check for empty datasets
+        if self.movies_df.empty or self.ratings_df.empty:
+            raise ValueError("Loaded datasets are empty. Please check input files.")
+
+        
+        self.movies_df['genres'] = self.movies_df['genres'].astype('category')
+        self.ratings_df['timestamp'] = pd.to_datetime(self.ratings_df['timestamp'], unit='s')
+
+        # memory usage info loggin
+        print("Movies DF memory usage:", self.movies_df.memory_usage(deep=True).sum() / 1024**2, "MB")
+        print("Ratings DF memory usage:", self.ratings_df.memory_usage(deep=True).sum() / 1024**2, "MB") 
 
     def clean_data(self) -> None:
-        """Remove duplicates and handle missing values"""
-        # Movies
+       
+        """
+        Clean movies and ratings datasets by removing duplicates and
+        handling missing values in key columns.
+        """
+        # Movies Remove ducplicated movie Id
         self.movies_df.drop_duplicates(subset='movieId', inplace=True)
+
+        # Remove movie where either movie id or title is NaN
         self.movies_df.dropna(subset=['movieId', 'title'], inplace=True)
-        # Ratings
+
+        # Ratings remove duplicated userId and Movie Id
         self.ratings_df.drop_duplicates(subset=['userId', 'movieId'], inplace=True)
+
+        # Remove rating where any userID or Movie ID and rating is NaN
         self.ratings_df.dropna(subset=['userId', 'movieId', 'rating'], inplace=True)
 
-    def aggregate_statistics(self) -> Dict[str, Any]:
-        """Compute basic dataset statistics"""
-        stats: Dict[str, Any] = {}
+    
 
-        # Movies stats
-        stats['num_movies'] = len(self.movies_df)
-        stats['genres'] = self.movies_df['genres'].str.split('|').explode().value_counts().to_dict()
-
-        # Ratings stats
-        stats['num_ratings'] = len(self.ratings_df)
-        stats['avg_rating'] = self.ratings_df['rating'].mean()
-        stats['min_rating'] = self.ratings_df['rating'].min()
-        stats['max_rating'] = self.ratings_df['rating'].max()
-        stats['ratings_per_movie'] = self.ratings_df.groupby('movieId')['rating'].count().to_dict()
-
-        return stats
-
-    def filter_movies_by_ratings(self, min_ratings: int = 0) -> pd.DataFrame:
-        """
-        Return movies that have at least `min_ratings` ratings.
-        Useful for LLM summaries or top-movie analysis.
-        """
-        counts = self.ratings_df.groupby('movieId')['rating'].count()
-        filtered_movie_ids = counts[counts >= min_ratings].index
-        return self.movies_df[self.movies_df['movieId'].isin(filtered_movie_ids)]
