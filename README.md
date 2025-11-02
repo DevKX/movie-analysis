@@ -53,7 +53,7 @@ If your application requires API keys (e.g., for LLM-based movie recommendations
 
 1. Generate API key at [https://groq.com](https://groq.com/)  
 2. Create `.env` file in `/movie-analysis/src`
-3. Add into .env file `GROQ_API_KEY=<YOUR_GROQ_API_KEY>`
+3. Add `GROQ_API_KEY=<YOUR_GROQ_API_KEY>` into .env file 
 
 
 ### Installation
